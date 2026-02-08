@@ -215,7 +215,7 @@ class Database:
                         vehicle_color TEXT,
                         pickup_flexibility TEXT DEFAULT 'exact',
                         return_trip INTEGER DEFAULT 0,
-                        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'full', 'completed', 'cancelled')),
+                        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'full', 'completed', 'cancelled', 'expired')),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP,
                         FOREIGN KEY (driver_id) REFERENCES users(id)
@@ -249,7 +249,7 @@ class Database:
                         vehicle_color TEXT,
                         pickup_flexibility TEXT DEFAULT 'exact',
                         return_trip INTEGER DEFAULT 0,
-                        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'full', 'completed', 'cancelled')),
+                        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'full', 'completed', 'cancelled', 'expired')),
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         updated_at DATETIME,
                         FOREIGN KEY (driver_id) REFERENCES users(id)
