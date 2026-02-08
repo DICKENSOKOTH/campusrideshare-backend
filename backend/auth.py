@@ -111,7 +111,7 @@ def validate_email(email: str) -> tuple[bool, str]:
     
     # University domain validation
     if not config.validate_university_email(email):
-        return False, f"Please use your university email address (@{config.UNIVERSITY_DOMAIN})."
+        return False, f"Please use your university email address (must end with @{config.UNIVERSITY_DOMAIN})."
     
     return True, ""
 
