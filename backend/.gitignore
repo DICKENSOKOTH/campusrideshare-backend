@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+rideshare.db
+uploads/*
+!uploads/.gitkeep
