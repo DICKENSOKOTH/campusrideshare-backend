@@ -25,7 +25,16 @@ except ImportError:
     HAS_POSTGRES = False
 
 
+
 class Database:
+    def set_user_admin(self, user_id: int, is_admin: bool = True) -> None:
+        """Set or unset admin privileges for a user by user_id."""
+        with self.get_connection() as conn:
+            cursor = self._get_cursor(conn)
+            p = self._placeholder()
+            cursor.execute(f"UPDATE users SET is_admin = {p} WHERE id = {p}", (1 if is_admin else 0, user_id))
+            conn.commit()
+
     """
     Database handler for the Campus Ride-Share platform.
     
@@ -2291,6 +2300,8 @@ class Database:
             
             return cursor.rowcount
 
+
+db = Database()
 
 # Global database instance
 db = Database()
