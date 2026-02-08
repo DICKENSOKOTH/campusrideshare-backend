@@ -2182,10 +2182,14 @@ class Database:
                 INSERT INTO api_tokens (token, user_id, expires_at)
                 VALUES ({p}, {p}, {p})
             """, (token, user_id, expires_at))
-            
+
             if self.use_postgres:
                 cursor.execute("SELECT lastval()")
-                return cursor.fetchone()[0]
+                row = cursor.fetchone()
+                if row is None:
+                    return None
+                # psycopg2 returns tuple, not dict
+                return row[0] if isinstance(row, tuple) else row.get('id', None)
             else:
                 return cursor.lastrowid
     
