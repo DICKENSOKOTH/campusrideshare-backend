@@ -883,7 +883,13 @@ class Database:
             
             if self.use_postgres:
                 cursor.execute("SELECT lastval()")
-                return cursor.fetchone()[0]
+                result = cursor.fetchone()
+                if result is None:
+                    return None
+                if isinstance(result, dict):
+                    # For psycopg2 with RealDictCursor
+                    return result.get('id') or result.get('user_id') or result.get('ride_id') or next(iter(result.values()), None)
+                return result[0]
             else:
                 return cursor.lastrowid
     
@@ -1216,7 +1222,12 @@ class Database:
                 
                 if self.use_postgres:
                     cursor.execute("SELECT lastval()")
-                    return cursor.fetchone()[0]
+                    result = cursor.fetchone()
+                    if result is None:
+                        return None
+                    if isinstance(result, dict):
+                        return result.get('id') or result.get('user_id') or result.get('ride_id') or next(iter(result.values()), None)
+                    return result[0]
                 else:
                     return cursor.lastrowid
             except (sqlite3.IntegrityError if not self.use_postgres else psycopg2.IntegrityError):
@@ -1461,7 +1472,12 @@ class Database:
                 
                 if self.use_postgres:
                     cursor.execute("SELECT lastval()")
-                    return cursor.fetchone()[0]
+                    result = cursor.fetchone()
+                    if result is None:
+                        return None
+                    if isinstance(result, dict):
+                        return result.get('id') or result.get('user_id') or result.get('ride_id') or next(iter(result.values()), None)
+                    return result[0]
                 else:
                     return cursor.lastrowid
             except (sqlite3.IntegrityError if not self.use_postgres else psycopg2.IntegrityError):
@@ -1588,7 +1604,12 @@ class Database:
             
             if self.use_postgres:
                 cursor.execute("SELECT lastval()")
-                return cursor.fetchone()[0]
+                result = cursor.fetchone()
+                if result is None:
+                    return None
+                if isinstance(result, dict):
+                    return result.get('id') or result.get('user_id') or result.get('ride_id') or next(iter(result.values()), None)
+                return result[0]
             else:
                 return cursor.lastrowid
     
@@ -1822,7 +1843,12 @@ class Database:
             
             if self.use_postgres:
                 cursor.execute("SELECT lastval()")
-                return cursor.fetchone()[0]
+                result = cursor.fetchone()
+                if result is None:
+                    return None
+                if isinstance(result, dict):
+                    return result.get('id') or result.get('user_id') or result.get('ride_id') or next(iter(result.values()), None)
+                return result[0]
             else:
                 return cursor.lastrowid
     
@@ -1909,7 +1935,12 @@ class Database:
             
             if self.use_postgres:
                 cursor.execute("SELECT lastval()")
-                return cursor.fetchone()[0]
+                result = cursor.fetchone()
+                if result is None:
+                    return None
+                if isinstance(result, dict):
+                    return result.get('id') or result.get('user_id') or result.get('ride_id') or next(iter(result.values()), None)
+                return result[0]
             else:
                 return cursor.lastrowid
     
