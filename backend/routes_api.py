@@ -219,7 +219,10 @@ def api_register():
     if config.DEBUG_MODE:
         with db.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('UPDATE users SET is_verified = 1 WHERE id = ?', (user_id,))
+            if getattr(db, 'use_postgres', False):
+                cursor.execute('UPDATE users SET is_verified = 1 WHERE id = %s', (user_id,))
+            else:
+                cursor.execute('UPDATE users SET is_verified = 1 WHERE id = ?', (user_id,))
     
     # Send verification email (if configured and not in debug mode)
     if config.is_email_sending_enabled() and not config.DEBUG_MODE:
