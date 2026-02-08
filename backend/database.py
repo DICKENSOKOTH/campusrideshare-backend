@@ -909,6 +909,12 @@ class Database:
             if row:
                 ride = dict(row)
                 ride['driver_rating'] = self.get_user_average_rating(ride['driver_id'])
+                for k, v in ride.items():
+                    import datetime
+                    if isinstance(v, (datetime.datetime, datetime.date)):
+                        ride[k] = v.isoformat()
+                    elif isinstance(v, datetime.time):
+                        ride[k] = v.strftime('%H:%M:%S')
                 return ride
             return None
     
@@ -935,7 +941,17 @@ class Database:
                     ORDER BY departure_date DESC, departure_time DESC
                 """, (driver_id,))
             
-            return [dict(row) for row in cursor.fetchall()]
+            rides = []
+            for row in cursor.fetchall():
+                ride = dict(row)
+                for k, v in ride.items():
+                    import datetime
+                    if isinstance(v, (datetime.datetime, datetime.date)):
+                        ride[k] = v.isoformat()
+                    elif isinstance(v, datetime.time):
+                        ride[k] = v.strftime('%H:%M:%S')
+                rides.append(ride)
+            return rides
     
     def search_rides(
         self,
@@ -1041,7 +1057,6 @@ class Database:
         """
         with self.get_connection() as conn:
             cursor = self._get_cursor(conn)
-            
             if self.use_postgres:
                 cursor.execute("""
                     SELECT r.*, u.full_name as driver_name
@@ -1064,14 +1079,18 @@ class Database:
                          OR (r.departure_date = date('now') AND r.departure_time > time('now')))
                     ORDER BY r.departure_date ASC, r.departure_time ASC
                 """)
-            
             rides = []
             for row in cursor.fetchall():
                 ride = dict(row)
                 ride['driver_rating'] = self.get_user_average_rating(ride['driver_id'])
                 ride['available_seats'] = ride['total_seats'] - ride['seats_taken']
+                for k, v in ride.items():
+                    import datetime
+                    if isinstance(v, (datetime.datetime, datetime.date)):
+                        ride[k] = v.isoformat()
+                    elif isinstance(v, datetime.time):
+                        ride[k] = v.strftime('%H:%M:%S')
                 rides.append(ride)
-            
             return rides
     
     def update_ride(self, ride_id: int, **kwargs) -> bool:
@@ -1199,7 +1218,16 @@ class Database:
                 LIMIT {p} OFFSET {p}
             """, tuple(params + [per_page, offset]))
             
-            rides = [dict(row) for row in cursor.fetchall()]
+            rides = []
+            for row in cursor.fetchall():
+                ride = dict(row)
+                for k, v in ride.items():
+                    import datetime
+                    if isinstance(v, (datetime.datetime, datetime.date)):
+                        ride[k] = v.isoformat()
+                    elif isinstance(v, datetime.time):
+                        ride[k] = v.strftime('%H:%M:%S')
+                rides.append(ride)
             return rides, total
     
     # =========================================================================
@@ -1290,7 +1318,17 @@ class Database:
                     ORDER BY r.departure_date DESC, r.departure_time DESC
                 """, (passenger_id,))
             
-            return [dict(row) for row in cursor.fetchall()]
+            bookings = []
+            for row in cursor.fetchall():
+                booking = dict(row)
+                for k, v in booking.items():
+                    import datetime
+                    if isinstance(v, (datetime.datetime, datetime.date)):
+                        booking[k] = v.isoformat()
+                    elif isinstance(v, datetime.time):
+                        booking[k] = v.strftime('%H:%M:%S')
+                bookings.append(booking)
+            return bookings
     
     def get_bookings_by_ride(self, ride_id: int) -> List[Dict[str, Any]]:
         """Get all bookings for a specific ride."""
@@ -1310,8 +1348,13 @@ class Database:
             for row in cursor.fetchall():
                 booking = dict(row)
                 booking['passenger_rating'] = self.get_user_average_rating(booking['passenger_id'])
+                for k, v in booking.items():
+                    import datetime
+                    if isinstance(v, (datetime.datetime, datetime.date)):
+                        booking[k] = v.isoformat()
+                    elif isinstance(v, datetime.time):
+                        booking[k] = v.strftime('%H:%M:%S')
                 bookings.append(booking)
-            
             return bookings
     
     def approve_booking(self, booking_id: int) -> bool:
@@ -1497,7 +1540,17 @@ class Database:
                 WHERE r.reviewed_user_id = {p}
                 ORDER BY r.created_at DESC
             """, (user_id,))
-            return [dict(row) for row in cursor.fetchall()]
+            reviews = []
+            for row in cursor.fetchall():
+                review = dict(row)
+                for k, v in review.items():
+                    import datetime
+                    if isinstance(v, (datetime.datetime, datetime.date)):
+                        review[k] = v.isoformat()
+                    elif isinstance(v, datetime.time):
+                        review[k] = v.strftime('%H:%M:%S')
+                reviews.append(review)
+            return reviews
     
     def get_user_average_rating(self, user_id: int) -> float:
         """Get the average rating for a user."""
