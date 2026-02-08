@@ -1035,7 +1035,7 @@ class Database:
                 if min_rating and ride['driver_rating'] < min_rating:
                     continue
                     
-                rides.append(ride)
+                rides.append(self._serialize_for_json(ride))
             
             return rides, total
     
