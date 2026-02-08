@@ -919,13 +919,17 @@ def api_get_booking(booking_id):
     if booking['passenger_id'] != user['id'] and booking.get('driver_id') != user['id'] and not user.get('is_admin'):
         return jsonify({'error': 'Not authorized'}), 403
     
+    # Ensure departure_time is always a string for JSON serialization
+    dep_time = booking.get('departure_time', '')
+    if hasattr(dep_time, 'strftime'):
+        dep_time = dep_time.strftime('%H:%M:%S')
     return jsonify({
         'id': booking['id'],
         'ride_id': booking['ride_id'],
         'origin': booking.get('origin', ''),
         'destination': booking.get('destination', ''),
         'departure_date': booking.get('departure_date', ''),
-        'departure_time': booking.get('departure_time', ''),
+        'departure_time': dep_time,
         'price_per_seat': booking.get('price_per_seat', 0),
         'status': booking.get('status', 'pending'),
         'ride_status': booking.get('ride_status', 'active'),
