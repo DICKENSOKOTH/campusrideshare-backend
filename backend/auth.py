@@ -150,10 +150,17 @@ def login_user(user: Dict[str, Any]) -> None:
     session['user_id'] = user['id']
     session['user_email'] = user['email']
     session['user_name'] = user['full_name']
-    session['is_admin'] = bool(user['is_admin'])
+    # Ensure admin email always gets admin privileges
+    from config import config
+    is_admin = user['is_admin']
+    if user['email'].lower() == config.ADMIN_EMAIL.lower():
+        if not is_admin:
+            # Update in DB if not already admin
+            db.set_user_admin(user['id'], True)
+        is_admin = 1
+    session['is_admin'] = bool(is_admin)
     session['is_driver'] = bool(user['is_driver'])
     session.permanent = True
-    
     # Update last login timestamp
     db.update_last_login(user['id'])
     db.reset_login_attempts(user['id'])
