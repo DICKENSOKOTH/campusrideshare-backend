@@ -188,8 +188,12 @@ def api_register():
     if password != confirm_password:
         return jsonify({'error': 'Passwords do not match'}), 400
     
+
     if not validate_email(email):
         return jsonify({'error': 'Invalid email format'}), 400
+    # Strict domain lock
+    if not config.validate_university_email(email):
+        return jsonify({'error': f'Registration is restricted to {config.UNIVERSITY_DOMAIN} emails only.'}), 400
     
     # Check for existing user
     existing = db.get_user_by_email(email)
@@ -201,38 +205,28 @@ def api_register():
     if not is_valid:
         return jsonify({'error': password_error}), 400
     
-    # Create user
+    # Create user (skip verification logic, always verified)
     password_hash = hash_password(password)
-    verification_token = generate_token()
-    verification_expires = get_verification_expiry()
-    
     user_id = db.create_user(
         email=email,
         password_hash=password_hash,
         full_name=full_name,
         phone=phone if phone else None,
-        verification_token=verification_token,
-        verification_expires_at=verification_expires
+        verification_token=None,
+        verification_expires_at=None
     )
-    
-    # In debug mode, auto-verify users so they can login immediately
-    if config.DEBUG_MODE:
-        with db.get_connection() as conn:
-            cursor = conn.cursor()
-            if getattr(db, 'use_postgres', False):
-                cursor.execute('UPDATE users SET is_verified = 1 WHERE id = %s', (user_id,))
-            else:
-                cursor.execute('UPDATE users SET is_verified = 1 WHERE id = ?', (user_id,))
-    
-    # Send verification email (if configured and not in debug mode)
-    if config.is_email_sending_enabled() and not config.DEBUG_MODE:
-        send_verification_email(email, full_name, verification_token, user_id)
-    
+    # Mark user as verified immediately
+    with db.get_connection() as conn:
+        cursor = conn.cursor()
+        if getattr(db, 'use_postgres', False):
+            cursor.execute('UPDATE users SET is_verified = 1 WHERE id = %s', (user_id,))
+        else:
+            cursor.execute('UPDATE users SET is_verified = 1 WHERE id = ?', (user_id,))
     return jsonify({
         'success': True,
-        'message': 'Registration successful!' if config.DEBUG_MODE else 'Registration successful! Please check your email to verify your account.',
+        'message': 'Registration successful! You can now log in.',
         'user_id': user_id,
-        'email_sent': config.is_email_sending_enabled() and not config.DEBUG_MODE
+        'email_sent': False
     })
 
 
