@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Blueprint, jsonify, request, session
+from extensions import limiter
 
 from config import config
 from database import db
@@ -110,9 +111,7 @@ def get_stats():
 # Authentication API
 # =============================================================================
 
-from flask import current_app
-
-@current_app.limiter.limit("10 per minute")
+@limiter.limit("10 per minute")
 @api_bp.route('/login', methods=['POST'])
 def api_login():
     """Handle user login."""
@@ -167,7 +166,7 @@ def api_login():
     })
 
 
-@current_app.limiter.limit("5 per minute")
+@limiter.limit("5 per minute")
 @api_bp.route('/register', methods=['POST'])
 def api_register():
     """Handle user registration."""
