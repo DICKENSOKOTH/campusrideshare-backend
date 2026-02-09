@@ -12,8 +12,7 @@ from routes_bookings import bookings_bp
 from routes_messaging import messaging_bp
 from routes_admin import admin_bp
 from routes_api import api_bp
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+from extensions import limiter
 
 # =============================================================================
 
@@ -142,11 +141,7 @@ def create_app():
                 g._db_conn_from_pool = False
 
     # Initialize Flask-Limiter after app creation
-    limiter = Limiter(
-        get_remote_address,
-        app=app,
-        default_limits=["300 per hour"]
-    )
+    limiter.init_app(app)
     app.limiter = limiter
     return app
 
