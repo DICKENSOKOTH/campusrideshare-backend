@@ -89,7 +89,7 @@ class Config:
     DEBUG_MODE: bool = get_optional('DEBUG_MODE', 'true').lower() in ('true', '1', 'yes')
     
     # University email domain for registration validation
-    UNIVERSITY_DOMAIN: str = get_optional('UNIVERSITY_DOMAIN', 'university.edu')
+    UNIVERSITY_DOMAIN: str = get_optional('UNIVERSITY_DOMAIN', 'university.edu').lstrip('@')
     
     # Price per kilometer for suggested pricing
     PRICE_PER_KM: float = get_float('PRICE_PER_KM', 5.0)
@@ -126,22 +126,17 @@ class Config:
     # -------------------------------------------------------------------------
     
     # SMTP server hostname
-    SMTP_HOST: str = get_optional('SMTP_HOST', 'smtp.gmail.com')
-    
+    SMTP_HOST: str = get_optional('SMTP_SERVER', 'smtp.gmail.com')
     # SMTP server port
     SMTP_PORT: int = get_int('SMTP_PORT', 587)
-    
     # SMTP authentication username
-    SMTP_USER: str = get_optional('SMTP_USER', '')
-    
+    SMTP_USER: str = get_optional('SMTP_USERNAME', '')
     # SMTP authentication password
     SMTP_PASSWORD: str = get_optional('SMTP_PASSWORD', '')
-    
     # Display name for outgoing emails
-    EMAIL_FROM_NAME: str = get_optional('EMAIL_FROM_NAME', 'Campus Ride-Share')
-    
+    EMAIL_FROM_NAME: str = get_optional('SMTP_FROM_NAME', 'Campus Ride-Share')
     # From address for outgoing emails
-    EMAIL_FROM_ADDRESS: str = get_optional('EMAIL_FROM_ADDRESS', '')
+    EMAIL_FROM_ADDRESS: str = get_optional('SMTP_FROM_EMAIL', '')
     
     # -------------------------------------------------------------------------
     # Admin Configuration
@@ -208,10 +203,14 @@ class Config:
     
     @classmethod
     def validate_university_email(cls, email: str) -> bool:
-        """Check if an email belongs to the configured university domain."""
-        if not email:
+        """Check if an email belongs to the configured university domain (strict match)."""
+        if not email or not cls.UNIVERSITY_DOMAIN:
             return False
-        return email.lower().endswith(f'@{cls.UNIVERSITY_DOMAIN.lower()}')
+        # Accept only emails ending with @domain (e.g., user@gmail.com for gmail.com)
+            domain = cls.UNIVERSITY_DOMAIN.lower().lstrip('@')
+            # Only allow exact match, not subdomains
+            email_domain = email.lower().split('@')[-1]
+            return email_domain == domain
 
 
 # Create a global config instance for easy importing
