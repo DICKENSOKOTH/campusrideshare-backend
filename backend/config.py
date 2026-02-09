@@ -89,7 +89,8 @@ class Config:
     DEBUG_MODE: bool = get_optional('DEBUG_MODE', 'true').lower() in ('true', '1', 'yes')
     
     # University email domain for registration validation
-    UNIVERSITY_DOMAIN: str = get_optional('UNIVERSITY_DOMAIN', 'university.edu').lstrip('@')
+    # University email domains for registration validation (robust: supports multiple domains, strips spaces/@, lowercase)
+    UNIVERSITY_DOMAIN: str = get_optional('UNIVERSITY_DOMAIN', 'university.edu')
     
     # Price per kilometer for suggested pricing
     PRICE_PER_KM: float = get_float('PRICE_PER_KM', 5.0)
@@ -203,14 +204,14 @@ class Config:
     
     @classmethod
     def validate_university_email(cls, email: str) -> bool:
-        """Check if an email belongs to the configured university domain (strict match)."""
+        """Check if an email belongs to any of the configured university domains (strict match, robust, multi-domain)."""
         if not email or not cls.UNIVERSITY_DOMAIN:
             return False
-        # Accept only emails ending with @domain (e.g., user@gmail.com for gmail.com)
-            domain = cls.UNIVERSITY_DOMAIN.lower().lstrip('@')
-            # Only allow exact match, not subdomains
-            email_domain = email.lower().split('@')[-1]
-            return email_domain == domain
+        # Support multiple domains separated by comma, semicolon, or space
+        raw_domains = cls.UNIVERSITY_DOMAIN.replace(';', ',').replace(' ', ',').split(',')
+        domains = [d.strip().lstrip('@').lower() for d in raw_domains if d.strip()]
+        email_domain = email.strip().lower().split('@')[-1]
+        return email_domain in domains
 
 
 # Create a global config instance for easy importing
