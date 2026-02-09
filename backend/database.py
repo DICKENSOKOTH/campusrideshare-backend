@@ -2022,8 +2022,12 @@ class Database:
             """, (recipient_id, recipient_email, subject, email_type))
             
             if self.use_postgres:
-                cursor.execute("SELECT lastval()")
-                return cursor.fetchone()[0]
+                cursor.execute("SELECT lastval() AS id")
+                row = cursor.fetchone()
+                # row can be a dict or tuple depending on cursor_factory
+                if isinstance(row, dict):
+                    return row.get('id') or list(row.values())[0]
+                return row[0]
             else:
                 return cursor.lastrowid
     
