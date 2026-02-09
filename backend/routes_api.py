@@ -9,7 +9,9 @@ import secrets
 from datetime import datetime, timedelta
 from functools import wraps
 
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, jsonify, request, session, current_app
+import os
+from werkzeug.utils import secure_filename
 from extensions import limiter
 
 from config import config
@@ -337,6 +339,54 @@ def api_update_profile():
         db.update_user(user['id'], **update_data)
     
     return jsonify({'success': True, 'message': 'Profile updated'})
+
+
+@api_bp.route('/profile/photo', methods=['POST'])
+@api_login_required
+def api_upload_profile_photo():
+    """Upload and set user's profile photo."""
+    user = get_api_user()
+    if not user:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    if 'avatar' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Validate extension
+    filename = secure_filename(file.filename)
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    allowed = getattr(current_app, 'config', None)
+    allowed_exts = []
+    try:
+        allowed_exts = current_app.config.get('ALLOWED_IMAGE_EXTENSIONS') or []
+    except Exception:
+        allowed_exts = []
+
+    if allowed_exts and ext not in allowed_exts:
+        return jsonify({'error': 'Invalid file type'}), 400
+
+    # Build unique filename and save
+    unique_filename = f"{__import__('uuid').uuid4().hex}.{ext}"
+    upload_folder = current_app.config.get('UPLOAD_FOLDER', 'static/uploads')
+    save_folder = 'profiles'
+    upload_path = os.path.join(upload_folder, save_folder)
+    os.makedirs(upload_path, exist_ok=True)
+    file_path = os.path.join(upload_path, unique_filename)
+    file.save(file_path)
+
+    # Build relative URL/path to store in DB (frontend expects 'uploads/...')
+    relative_path = os.path.join('uploads', save_folder, unique_filename).replace('\\', '/')
+
+    # Update DB
+    success = db.update_user_photo(user['id'], relative_path)
+    if not success:
+        return jsonify({'error': 'Failed to update profile photo'}), 500
+
+    return jsonify({'success': True, 'profile_photo': relative_path})
 
 
 @api_bp.route('/users/<int:user_id>')
