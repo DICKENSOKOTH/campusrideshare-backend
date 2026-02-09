@@ -973,7 +973,7 @@ def api_create_booking():
     if not booking_id:
         return jsonify({'error': 'Could not create booking'}), 500
     
-    return jsonify({'success': True, 'booking_id': booking_id}), 201
+    return jsonify({'success': True, 'booking_id': booking_id, 'id': booking_id}), 201
 
 
 @api_bp.route('/bookings/<int:booking_id>/cancel', methods=['POST'])
