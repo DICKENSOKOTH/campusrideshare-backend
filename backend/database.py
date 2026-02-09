@@ -20,6 +20,7 @@ from config import config
 try:
     import psycopg2
     import psycopg2.extras
+    from psycopg2.pool import ThreadedConnectionPool
     HAS_POSTGRES = True
 except ImportError:
     HAS_POSTGRES = False
@@ -74,6 +75,21 @@ class Database:
             if self.db_url.startswith('postgres://'):
                 self.db_url = self.db_url.replace('postgres://', 'postgresql://', 1)
             self.db_path = None
+            # Initialize a threaded connection pool for Postgres to avoid
+            # creating a fresh connection on every request. Pool sizes can
+            # be configured via environment variables PG_POOL_MIN and
+            # PG_POOL_MAX (defaults: 1, 10).
+            try:
+                minconn = int(os.getenv('PG_POOL_MIN', '1'))
+                maxconn = int(os.getenv('PG_POOL_MAX', '10'))
+            except Exception:
+                minconn, maxconn = 1, 10
+            try:
+                # psycopg2 ThreadedConnectionPool accepts dsn as connection string
+                self.pool = ThreadedConnectionPool(minconn, maxconn, dsn=self.db_url)
+            except Exception:
+                # Fallback to no pool if pool creation fails
+                self.pool = None
         else:
             self.use_postgres = False
             self.db_path = db_path or config.DATABASE_PATH
@@ -89,16 +105,35 @@ class Database:
         Handles both PostgreSQL and SQLite.
         """
         if self.use_postgres:
-            conn = psycopg2.connect(self.db_url)
-            conn.set_session(autocommit=False)
+            # Prefer pooled connections when available
+            conn = None
+            if getattr(self, 'pool', None):
+                conn = self.pool.getconn()
+            else:
+                conn = psycopg2.connect(self.db_url)
+            # Ensure manual transaction control
             try:
+                conn.set_session(autocommit=False)
                 yield conn
                 conn.commit()
             except Exception:
                 conn.rollback()
                 raise
             finally:
-                conn.close()
+                # Return connection to pool or close
+                if getattr(self, 'pool', None) and conn:
+                    try:
+                        self.pool.putconn(conn)
+                    except Exception:
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                else:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
         else:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
@@ -115,13 +150,80 @@ class Database:
     def _get_cursor(self, conn):
         """Get a cursor with proper row factory for both databases."""
         if self.use_postgres:
-            return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         else:
-            return conn.cursor()
+            cur = conn.cursor()
+
+        # Instrument execute/executemany to log slow queries
+        try:
+            import time, logging, os
+            threshold_ms = int(os.getenv('DB_SLOW_QUERY_MS', '200'))
+
+            if hasattr(cur, 'execute'):
+                _orig_execute = cur.execute
+                def _timed_execute(query, params=None):
+                    start = time.time()
+                    if params is None:
+                        res = _orig_execute(query)
+                    else:
+                        res = _orig_execute(query, params)
+                    elapsed = (time.time() - start) * 1000.0
+                    if elapsed > threshold_ms:
+                        logging.getLogger(__name__).warning(
+                            'Slow DB query: %.1fms - %s - params=%s', elapsed, str(query), str(params)
+                        )
+                    return res
+                cur.execute = _timed_execute
+
+            if hasattr(cur, 'executemany'):
+                _orig_executemany = cur.executemany
+                def _timed_executemany(query, seq_of_params):
+                    start = time.time()
+                    res = _orig_executemany(query, seq_of_params)
+                    elapsed = (time.time() - start) * 1000.0
+                    if elapsed > threshold_ms:
+                        logging.getLogger(__name__).warning(
+                            'Slow DB executemany: %.1fms - %s', elapsed, str(query)
+                        )
+                    return res
+                cur.executemany = _timed_executemany
+        except Exception:
+            pass
+
+        return cur
     
     def _placeholder(self):
         """Get the correct placeholder for parameterized queries."""
         return '%s' if self.use_postgres else '?'
+
+    # Methods to support per-request connection reuse
+    def acquire_request_connection(self):
+        """Acquire a connection suitable for attaching to the Flask request context.
+
+        Returns a tuple (conn, from_pool_bool).
+        """
+        if self.use_postgres:
+            if getattr(self, 'pool', None):
+                conn = self.pool.getconn()
+                return conn, True
+            else:
+                conn = psycopg2.connect(self.db_url)
+                return conn, False
+        else:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
+            return conn, False
+
+    def release_request_connection(self, conn, from_pool: bool = False):
+        """Release a connection previously acquired for a request."""
+        try:
+            if self.use_postgres and getattr(self, 'pool', None) and from_pool:
+                self.pool.putconn(conn)
+            else:
+                conn.close()
+        except Exception:
+            pass
     
     def _init_database(self):
         """
