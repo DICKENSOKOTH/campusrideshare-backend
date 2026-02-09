@@ -75,20 +75,30 @@ class Database:
             if self.db_url.startswith('postgres://'):
                 self.db_url = self.db_url.replace('postgres://', 'postgresql://', 1)
             self.db_path = None
-            # Initialize a threaded connection pool for Postgres to avoid
+            # Try to initialize a threaded connection pool for Postgres to avoid
             # creating a fresh connection on every request. Pool sizes can
             # be configured via environment variables PG_POOL_MIN and
-            # PG_POOL_MAX (defaults: 1, 10).
+            # PG_POOL_MAX (defaults: 1, 10). If any step fails we will
+            # gracefully fall back to using SQLite to avoid crashing the app
+            # at import/startup.
             try:
                 minconn = int(os.getenv('PG_POOL_MIN', '1'))
                 maxconn = int(os.getenv('PG_POOL_MAX', '10'))
             except Exception:
                 minconn, maxconn = 1, 10
             try:
-                # psycopg2 ThreadedConnectionPool accepts dsn as connection string
                 self.pool = ThreadedConnectionPool(minconn, maxconn, dsn=self.db_url)
+                # quick sanity check: get and return a connection
+                conn_test = self.pool.getconn()
+                try:
+                    conn_test.cursor().execute('SELECT 1')
+                finally:
+                    self.pool.putconn(conn_test)
             except Exception:
-                # Fallback to no pool if pool creation fails
+                # Pool or test connection failed — fall back to SQLite
+                self.use_postgres = False
+                self.db_path = db_path or config.DATABASE_PATH
+                self.db_url = None
                 self.pool = None
         else:
             self.use_postgres = False
