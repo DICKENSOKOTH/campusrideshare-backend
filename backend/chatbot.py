@@ -314,12 +314,20 @@ REMEMBER: You have NO access to driver names, contact details, or personal infor
         Returns:
             Dictionary with 'success', 'response', and optionally 'error'.
         """
-        # Check if OpenAI is enabled
-        if not self.enabled:
+        # If OpenAI is not enabled or client failed to initialize,
+        # return a graceful fallback response (success=True) so the
+        # frontend does not show a connection-error overlay.
+        if not self.enabled or self.client is None:
+            fallback = self._get_fallback_response()
+            try:
+                logging.getLogger(__name__).info('OpenAI unavailable, returning fallback response')
+            except Exception:
+                pass
             return {
-                "success": False,
-                "error": "AI assistant is not configured.",
-                "response": "The AI Assistant is currently unavailable. Please use the search page to find rides, or try again later."
+                "success": True,
+                "response": fallback,
+                "tokens_used": 0,
+                "note": "fallback"
             }
         
         # Check rate limit
@@ -382,21 +390,34 @@ REMEMBER: You have NO access to driver names, contact details, or personal infor
             }
             
         except Exception as e:
+            # On any runtime error (network, API, parsing), return a
+            # friendly fallback response rather than an error state so
+            # the UI remains usable and doesn't show a blocking overlay.
             error_message = str(e)
             fallback_response = self._get_fallback_response()
-            
-            # Log the error interaction
-            db.log_chat_interaction(
-                user_id=user_id,
-                user_message=user_message,
-                bot_response=f"[ERROR] {fallback_response}",
-                tokens_used=0
-            )
-            
+
+            # Log the error interaction (still record what happened)
+            try:
+                db.log_chat_interaction(
+                    user_id=user_id,
+                    user_message=user_message,
+                    bot_response=f"[ERROR] {fallback_response}",
+                    tokens_used=0
+                )
+            except Exception:
+                pass
+
+            try:
+                logging.getLogger(__name__).warning('Chatbot error: %s', error_message)
+            except Exception:
+                pass
+
             return {
-                "success": False,
-                "error": error_message,
-                "response": fallback_response
+                "success": True,
+                "response": fallback_response,
+                "tokens_used": 0,
+                "note": "fallback",
+                "error": error_message
             }
     
     def _get_fallback_response(self) -> str:
