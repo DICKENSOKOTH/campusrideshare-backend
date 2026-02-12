@@ -166,7 +166,7 @@ class Config:
     
     # Login attempt rate limiting
     MAX_LOGIN_ATTEMPTS: int = 5
-    LOGIN_LOCKOUT_MINUTES: int = 15
+    LOGIN_LOCKOUT_MINUTES: int = 10
     
     # Chatbot rate limiting
     CHATBOT_RATE_LIMIT: int = 10  # requests per minute
@@ -174,6 +174,14 @@ class Config:
     # Token expiry times
     VERIFICATION_TOKEN_EXPIRY_HOURS: int = 24
     PASSWORD_RESET_TOKEN_EXPIRY_HOURS: int = 1
+
+    # Automatic cleanup settings
+    # How often (seconds) to run the ride cleanup job (default: hourly)
+    CLEANUP_INTERVAL_SECONDS: int = get_int('CLEANUP_INTERVAL_SECONDS', 3600)
+    # Enable or disable automatic cleanup thread
+    AUTO_CLEANUP_ENABLED: bool = get_optional('AUTO_CLEANUP_ENABLED', 'true').lower() in ('true', '1', 'yes')
+    # Grace period (minutes) after scheduled departure before marking a ride expired
+    RIDE_EXPIRATION_GRACE_MINUTES: int = get_int('RIDE_EXPIRATION_GRACE_MINUTES', 60)
     
     # -------------------------------------------------------------------------
     # Upload Paths
