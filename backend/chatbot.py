@@ -12,9 +12,9 @@ from typing import Optional, List, Dict, Any
 from config import config
 from database import db
 
-# Only import OpenAI if configured
-if config.is_openai_enabled():
-    from openai import OpenAI
+import logging
+
+# Do not import OpenAI at module import time; import lazily in __init__
 
 
 class RideShareChatbot:
@@ -36,7 +36,13 @@ class RideShareChatbot:
         """Initialize the chatbot with OpenAI client if configured."""
         self.enabled = config.is_openai_enabled()
         if self.enabled:
-            self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+            try:
+                from openai import OpenAI
+                self.client = OpenAI(api_key=config.OPENAI_API_KEY)
+            except Exception as e:
+                logging.getLogger(__name__).warning('OpenAI client init failed: %s', e)
+                self.client = None
+                self.enabled = False
         else:
             self.client = None
         self.model = config.OPENAI_MODEL
