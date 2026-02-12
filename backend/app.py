@@ -149,6 +149,34 @@ def create_app():
 
 app = create_app()
 
+# Start a background cleanup thread to mark expired rides and delete old expired rides.
+# Runs only when enabled in config and avoids running twice under the Werkzeug reloader.
+def _start_cleanup_thread():
+    import threading, time, os
+
+    if not config.AUTO_CLEANUP_ENABLED:
+        return
+
+    # Avoid starting twice when using the reloader
+    if app.debug and os.getenv('WERKZEUG_RUN_MAIN') != 'true':
+        return
+
+    def _worker():
+        interval = max(60, int(config.CLEANUP_INTERVAL_SECONDS))
+        while True:
+            try:
+                db.run_ride_cleanup()
+            except Exception:
+                pass
+            time.sleep(interval)
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+
+# Kick off cleanup thread (non-blocking)
+_start_cleanup_thread()
+
 # =============================================================================
 
 def allowed_file(filename: str, allowed_extensions: set) -> bool:
