@@ -707,3 +707,18 @@ def send_rating_request(
         to_email, user_name, other_user_name, origin, destination,
         departure_date, ride_id, other_user_id, recipient_id
     )
+
+
+def send_admin_warning(
+    to_email: str,
+    user_name: str,
+    message: str,
+    recipient_id: Optional[int] = None
+) -> bool:
+    """Send an admin warning email to a user."""
+    subject = f"Important message from {email_sender.app_name}"
+    body = (
+        f"Hello {user_name},\n\n{message}\n\nIf you have questions, please contact support.\n\n"
+        f"Best regards,\nThe {email_sender.app_name} Team\n\n---\nThis is an automated message. Please do not reply to this email."
+    )
+    return email_sender._send(to_email, subject, body, 'admin_warning', recipient_id)
