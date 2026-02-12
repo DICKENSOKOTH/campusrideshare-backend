@@ -1644,8 +1644,51 @@ class Database:
             """, (user_id,))
             row = cursor.fetchone()
             if row and row['avg_rating']:
-                return round(float(row['avg_rating']), 1)
+                avg = float(row['avg_rating'])
+                # Clamp average to valid range just in case of bad data
+                if avg < 0:
+                    avg = 0.0
+                if avg > 5:
+                    avg = 5.0
+                return round(avg, 1)
             return 0.0
+
+    def get_user_ride_counts(self, user_id: int) -> Dict[str, int]:
+        """
+        Get counts for rides given and rides taken by a user.
+
+        - rides_given: number of distinct rides the user posted that had at least
+          one booking confirmed or completed (i.e., the driver approved a request).
+        - rides_taken: number of distinct rides the user was confirmed on as a
+          passenger (status confirmed or completed).
+
+        Returns:
+            Dict with keys 'rides_given' and 'rides_taken'.
+        """
+        with self.get_connection() as conn:
+            cursor = self._get_cursor(conn)
+            p = self._placeholder()
+
+            # Rides given: driver posted ride and at least one booking was confirmed/completed
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT r.id) as count
+                FROM rides r
+                JOIN bookings b ON b.ride_id = r.id
+                WHERE r.driver_id = {p} AND b.status IN ('confirmed', 'completed')
+            """, (user_id,))
+            row = cursor.fetchone()
+            rides_given = row['count'] if self.use_postgres else row[0]
+
+            # Rides taken: passenger had a booking confirmed/completed
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT b.ride_id) as count
+                FROM bookings b
+                WHERE b.passenger_id = {p} AND b.status IN ('confirmed', 'completed')
+            """, (user_id,))
+            row = cursor.fetchone()
+            rides_taken = row['count'] if self.use_postgres else row[0]
+
+            return {'rides_given': int(rides_given or 0), 'rides_taken': int(rides_taken or 0)}
     
     def check_review_exists(
         self,
@@ -2166,7 +2209,8 @@ class Database:
     
     def mark_expired_rides_inactive(self) -> int:
         """
-        Mark rides as 'expired' if they are past their scheduled departure time by 30 minutes.
+        Mark rides as 'expired' if they are past their scheduled departure time
+        plus a configurable grace period (default 60 minutes).
         Only affects 'active' or 'full' rides.
         
         Returns:
@@ -2176,24 +2220,33 @@ class Database:
             cursor = self._get_cursor(conn)
             now = datetime.now()
             p = self._placeholder()
-            
+
+            # Use configured grace minutes (fallback to 60 if config missing)
+            try:
+                grace = int(config.RIDE_EXPIRATION_GRACE_MINUTES)
+            except Exception:
+                grace = 60
+
+            # Compute cutoff = now - grace minutes. Rides with departure_datetime < cutoff should be expired.
+            cutoff = now - timedelta(minutes=grace)
+
             if self.use_postgres:
                 cursor.execute(f"""
                     UPDATE rides 
                     SET status = 'expired', 
                         updated_at = CURRENT_TIMESTAMP
                     WHERE status IN ('active', 'full')
-                    AND (departure_date || ' ' || departure_time)::timestamp + interval '30 minutes' < {p}::timestamp
-                """, (now,))
+                    AND (departure_date || ' ' || departure_time)::timestamp < {p}::timestamp
+                """, (cutoff,))
             else:
                 cursor.execute(f"""
                     UPDATE rides 
                     SET status = 'expired', 
                         updated_at = CURRENT_TIMESTAMP
                     WHERE status IN ('active', 'full')
-                    AND datetime(departure_date || ' ' || departure_time, '+30 minutes') < datetime({p})
-                """, (now.isoformat(),))
-            
+                    AND datetime(departure_date || ' ' || departure_time) < datetime({p})
+                """, (cutoff.isoformat(),))
+
             return cursor.rowcount
     
     def delete_old_expired_rides(self) -> Dict[str, Any]:
