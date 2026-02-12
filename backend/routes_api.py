@@ -315,8 +315,11 @@ def api_get_profile():
         'emergency_contact_phone': user.get('emergency_contact_phone'),
         'created_at': user.get('created_at'),
         'avg_rating': rating,
-        'total_reviews': len(reviews) if reviews else 0
+        'total_reviews': len(reviews) if reviews else 0,
+        'rides_given': db.get_user_ride_counts(user['id'])['rides_given'],
+        'rides_taken': db.get_user_ride_counts(user['id'])['rides_taken']
     })
+
 
 
 @api_bp.route('/profile', methods=['PUT'])
@@ -421,6 +424,8 @@ def api_get_user(user_id):
         'created_at': user.get('created_at'),
         'avg_rating': rating,
         'total_reviews': len(reviews) if reviews else 0,
+        'rides_given': db.get_user_ride_counts(user_id)['rides_given'],
+        'rides_taken': db.get_user_ride_counts(user_id)['rides_taken'],
         'email': user['email'],
         'phone': user.get('phone')
     })
@@ -1309,6 +1314,14 @@ def api_admin_stats():
     return jsonify(stats)
 
 
+@api_bp.route('/admin/run-cleanup', methods=['POST'])
+@api_admin_required
+def api_admin_run_cleanup():
+    """Run ride cleanup (mark expired and delete old expired rides). Admin only."""
+    result = db.run_ride_cleanup()
+    return jsonify({'success': True, 'result': result})
+
+
 @api_bp.route('/admin/users')
 @api_admin_required
 def api_admin_users():
@@ -1361,6 +1374,29 @@ def api_admin_delete_user(user_id):
     # We'll just ban them instead of deleting to preserve data integrity
     db.ban_user(user_id)
     return jsonify({'success': True, 'message': 'User removed'})
+
+
+@api_bp.route('/admin/users/<int:user_id>/warn', methods=['POST'])
+@api_admin_required
+def api_admin_warn_user(user_id):
+    """Send a warning message to a user via email (admin only)."""
+    from email_utils import send_admin_warning
+
+    data = request.get_json() or {}
+    message = data.get('message', '').strip()
+
+    user = db.get_user_by_id(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    if not message:
+        return jsonify({'error': 'Message is required'}), 400
+
+    sent = send_admin_warning(user['email'], user.get('full_name') or user['email'], message, user_id)
+    if not sent:
+        return jsonify({'error': 'Failed to send warning (email not configured)'}), 500
+
+    return jsonify({'success': True, 'message': 'Warning sent'})
 
 
 @api_bp.route('/admin/rides')
